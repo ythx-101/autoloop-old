@@ -51,7 +51,7 @@ AutoLoop Installer
   bash install.sh --repo myorg/myapp
   bash install.sh --repo myorg/myapp --user agent --cron-interval 15
 EOF
-    exit 0
+    exit "${1:-0}"
 }
 
 # ── 解析参数 ──
@@ -67,13 +67,13 @@ while [[ $# -gt 0 ]]; do
         --skip-user)      SKIP_USER=true; shift;;
         --skip-cron)      SKIP_CRON=true; shift;;
         -h|--help)        usage;;
-        *)                error "未知参数: $1"; usage;;
+        *)                error "未知参数: $1"; usage 1;;
     esac
 done
 
-[ -z "$REPO" ] && { error "必须指定 --repo 参数"; usage; }
+[ -z "$REPO" ] && { error "必须指定 --repo 参数"; usage 1; }
 
-SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPTS_DIR="${SKILL_DIR}/scripts"
 
 echo "============================================"

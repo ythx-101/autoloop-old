@@ -19,6 +19,8 @@ import sys, json, subprocess
 REPO = '$REPO'
 issues = json.load(sys.stdin)
 for issue in issues:
+    if 'pull_request' in issue:
+        continue
     num = issue['number']
     title = issue['title']
     labels = [l['name'] for l in issue.get('labels', [])]

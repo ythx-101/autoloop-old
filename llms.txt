@@ -1,0 +1,51 @@
+# AutoLoop
+
+> AutoLoop is a zero-glue, issue-driven auto-fix pipeline for GitHub repos: cron polls labeled issues, Claude Code (headless `claude -p`) attempts the fix, the next cycle re-verifies, and the issue is closed — or escalated to a human after N failures. Built for solo devs and small teams who run their own Linux servers.
+
+## What it is
+
+Pure shell scripts. No orchestrator, queue or database: GitHub Issues and labels hold the state, cron is the scheduler.
+
+## Who it's for
+
+Solo developers and small teams who run their own Linux servers and want repetitive ops fixes handled from GitHub issues.
+
+## How it works
+
+1. cron runs `auto-fix.sh` and `gh-issue-router.sh` every N minutes.
+2. `auto-fix.sh` picks open `type:service` issues and runs Claude Code on the issue body.
+3. If Claude Code reports `FIXED:`, the issue is labeled `pending-verify`.
+4. The next cycle verifies (the issue's `verify` block, or a read-only Claude Code check) and closes the issue on success.
+5. After `--max-retries` failures the issue gets `needs-decision`, with an optional Telegram message.
+
+## Install
+
+    git clone https://github.com/ythx-101/autoloop-old.git autoloop
+    cd autoloop
+    sudo bash install.sh --repo OWNER/REPO
+
+## Labels
+
+- `type:service`: auto-fixed
+- `type:bug`, `type:reading`, `type:enhancement`: logged by the router, not auto-fixed
+- `pending-verify`, `needs-decision`, `auto-fixed`, `stale`: state labels (skipped by the fixer, except `pending-verify` which is verified)
+
+## Limitations
+
+- Only `type:service` issues are auto-fixed.
+- Requires Linux, root and cron; single machine.
+
+## Security
+
+- Claude Code runs with `bypassPermissions` and copies of your gh/Claude credentials.
+- `verify` blocks run via `bash -c` as the cron user (usually root).
+- Use on private repos or repos where only trusted collaborators can label and edit issues.
+
+## Links
+
+- [README](https://github.com/ythx-101/autoloop-old/blob/main/README.md)
+- [SKILL.md](https://github.com/ythx-101/autoloop-old/blob/main/SKILL.md)
+- [install.sh](https://github.com/ythx-101/autoloop-old/blob/main/install.sh)
+- [scripts/auto-fix.sh](https://github.com/ythx-101/autoloop-old/blob/main/scripts/auto-fix.sh)
+- [scripts/gh-issue-router.sh](https://github.com/ythx-101/autoloop-old/blob/main/scripts/gh-issue-router.sh)
+- [scripts/cc.sh](https://github.com/ythx-101/autoloop-old/blob/main/scripts/cc.sh)

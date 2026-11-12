@@ -1,0 +1,15 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n
+        run: for f in install.sh scripts/*.sh; do bash -n "$f"; done
+      - name: install.sh exit codes
+        run: |
+          bash install.sh --help
+          set +e
+          bash install.sh >/dev/null 2>&1
+          test $? -eq 1

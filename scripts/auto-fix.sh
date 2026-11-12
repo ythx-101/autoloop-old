@@ -52,8 +52,22 @@ failed = 0
 verified = 0
 verify_failed = 0
 
+TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}
+FAIL_MARKERS = ("auto-fix 无法修复", "延迟验证未通过")
+
+def get_fail_comments(num):
+    """只统计仓库 OWNER/MEMBER/COLLABORATOR 发的失败评论（修复失败 + 验证失败）"""
+    cr = subprocess.run(["gh", "api", f"repos/{REPO}/issues/{num}/comments?per_page=100"],
+        capture_output=True, text=True)
+    comments = json.loads(cr.stdout) if cr.returncode == 0 else []
+    return [c for c in comments
+        if c.get("author_association") in TRUSTED
+        and any(m in (c.get("body") or "") for m in FAIL_MARKERS)]
+
 # ── 阶段1: 验证 pending-verify 的 issue ──
 for issue in issues:
+    if "pull_request" in issue:
+        continue
     num = issue["number"]
     title = issue["title"]
     body = (issue.get("body") or "").strip()
@@ -108,9 +122,22 @@ for issue in issues:
             capture_output=True)
         print(f"[verify-fail] #{num}")
         verify_failed += 1
+        # 验证失败也计入重试；达到上限直接升级人工，避免 FIXED → 验证失败 无限循环
+        n_fail = len(get_fail_comments(num))
+        if n_fail >= MAX_RETRIES:
+            subprocess.run(["gh", "api", f"repos/{REPO}/issues/{num}/labels",
+                "--method", "POST", "--input", "-"],
+                input=json.dumps({"labels":["needs-decision"]}).encode(),
+                capture_output=True)
+            if TG and os.path.exists(TG):
+                subprocess.run(["bash", TG, f"🔧 issue #{num} 已失败 {n_fail} 次（含验证失败），需要你看: {title}"],
+                    capture_output=True)
+            print(f"[human] #{num}: 失败 {n_fail} 次（含验证失败）")
 
 # ── 阶段2: 处理需要修复的 issue ──
 for issue in issues:
+    if "pull_request" in issue:
+        continue
     num = issue["number"]
     title = issue["title"]
     body = (issue.get("body") or "").strip()
@@ -124,10 +151,7 @@ for issue in issues:
 
     print(f"[fix] #{num}: {title}")
 
-    cr = subprocess.run(["gh", "api", f"repos/{REPO}/issues/{num}/comments?per_page=10"],
-        capture_output=True, text=True)
-    comments = json.loads(cr.stdout) if cr.returncode == 0 else []
-    fail_comments = [c for c in comments if "auto-fix 无法修复" in (c.get("body") or "")]
+    fail_comments = get_fail_comments(num)
 
     if len(body) > 50:
         prompt = body + "\n\n最后一行必须输出：FIXED: 简述 或 NEEDS_HUMAN: 原因"

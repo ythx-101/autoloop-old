@@ -1,6 +1,6 @@
 ---
 name: autoloop
-description: Issue 驱动的全自动 Agent 管线 — 为任意 GitHub 仓库部署 cron 轮询 + CC 自动修复 + 延迟验证 + 人工升级的闭环工作流。
+description: Issue 驱动的全自动 Agent 管线 — 为任意 GitHub 仓库部署 cron 轮询 + Claude Code 自动修复 + 延迟验证 + 人工升级的闭环工作流（自动运维、纯 Shell）。
 metadata:
   version: 1.0.0
   author: OpenClaw
@@ -40,11 +40,11 @@ auto-close issue
 ## 快速开始
 
 ```bash
-# 一键安装
-bash skills/our/autoloop/install.sh --repo user/repo
+# 在仓库/skill 目录下执行
+bash install.sh --repo user/repo
 
 # 自定义参数
-bash skills/our/autoloop/install.sh \
+bash install.sh \
     --repo myorg/myapp \
     --user agent \
     --cron-interval 15 \
@@ -76,7 +76,7 @@ bash skills/our/autoloop/install.sh \
 标题: Redis 连接池耗尽导致 API 500
 
 body:
-检查 /root/clawd/services/api 的 Redis 连接配置。
+检查 /srv/myapp/services/api 的 Redis 连接配置。
 当前 max_connections=10 不够用，需要增加到 50。
 
 修改 config.py 中的 REDIS_MAX_CONNECTIONS。
@@ -98,9 +98,9 @@ curl -s http://localhost:8080/health | grep -q '"status":"ok"'
 | Label | 含义 |
 |-------|------|
 | `type:service` | 服务/运维类，自动修复 |
-| `type:bug` | Bug，CC 修复 |
+| `type:bug` | Bug，router 记录，不自动修复 |
 | `type:enhancement` | 功能增强，人工处理 |
-| `type:reading` | 阅读/研究任务 |
+| `type:reading` | 阅读/研究任务，router 记录，不自动修复 |
 | `pending-verify` | 等待下一轮自动验证 |
 | `needs-decision` | 重试耗尽，需人工介入 |
 
@@ -123,8 +123,8 @@ tail -f /var/log/autoloop/auto-fix.log
 tail -f /var/log/autoloop/cron.log
 
 # 手动触发一次
-source /root/clawd/skills/our/autoloop/.env
-bash /root/clawd/skills/our/autoloop/scripts/auto-fix.sh
+. <install-dir>/.env
+bash <install-dir>/scripts/auto-fix.sh
 
 # 查看当前 cron
 crontab -l | grep autoloop
@@ -134,11 +134,20 @@ crontab -l | grep autoloop
 
 ```bash
 # 移除 cron
-crontab -l | grep -v 'autoloop' | crontab -
+crontab -l | grep -v '# autoloop:' | crontab -
 
 # 删除日志
 rm -rf /var/log/autoloop
 
 # 删除 skill 目录
-rm -rf skills/our/autoloop
+rm -rf <install-dir>
+
+# 可选：删除执行用户（会一并删掉复制过去的 gh/Claude 凭证）
+userdel -r ccworker
 ```
+
+## 安全提示
+
+- CC 以 `bypassPermissions` 运行，并持有复制过去的 gh/Claude 凭证；`verify` 代码块由 cron 用户（通常是 root）以 `bash -c` 执行。
+- 建议只用于私有仓库，或只有可信协作者能打标签、编辑 issue 的仓库。
+- 只有能打 `type:service` 标签的人才能触发修复。
